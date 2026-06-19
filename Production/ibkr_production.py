@@ -67,7 +67,7 @@ def tg(msg):
             json={"chat_id": chat_id, "text": _strip_html(msg), "parse_mode": ""},
             timeout=5
         )
-    except:
+    except Exception:
         pass
 
 # Logging
@@ -227,7 +227,7 @@ class ProductionSystem:
                         if val > 0:
                             log.info(f"   Equity: {v.currency} {val:,.2f}")
                             return val
-            except:
+            except Exception:
                 pass
 
             log.warning(f"⚠️  Account value attempt {attempt+1} returned 0, retrying...")
@@ -244,7 +244,7 @@ class ProductionSystem:
             vix = ticker.last if ticker.last == ticker.last else ticker.close
             self.ib.cancelMktData(self.vix)
             return vix if vix > 0 else 15.0
-        except:
+        except Exception:
             return 15.0
     
     def get_leverage(self):
@@ -523,7 +523,7 @@ class ProductionSystem:
                     self.ib.sleep(2)
                     raw = ticker.last if ticker.last == ticker.last else ticker.close
                     price = raw if (raw == raw and raw > 0) else None
-                except:
+                except Exception:
                     price = None
 
                 price_str = f"${price:.2f}" if price is not None else "No data"
@@ -618,7 +618,7 @@ class ProductionSystem:
                                     if t.order.orderId == self.stop_order_id:
                                         current_stop = t.order.auxPrice
                                         break
-                            except:
+                            except Exception:
                                 pass
 
                         if new_stop > current_stop:
