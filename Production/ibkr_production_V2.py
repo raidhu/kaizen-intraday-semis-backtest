@@ -174,7 +174,7 @@ class ProductionSystem:
             for v in self.ib.accountValues():
                 if v.tag == 'NetLiquidation' and v.currency == 'USD':
                     return float(v.value)
-        except:
+        except Exception:
             pass
         return 0
     
@@ -185,7 +185,7 @@ class ProductionSystem:
             self.ib.sleep(2)
             vix = ticker.last if ticker.last == ticker.last else ticker.close
             return vix if vix > 0 else 15.0
-        except:
+        except Exception:
             return 15.0
     
     def get_leverage(self):
@@ -272,7 +272,7 @@ class ProductionSystem:
                 self.ib.cancelOrder(self.stop_order_id)
                 self.stop_order_id = None
                 log.info("🛡️  Stop cancelled")
-            except:
+            except Exception:
                 pass
     
     def check_stop_triggered(self):
@@ -291,7 +291,7 @@ class ProductionSystem:
                 self.stop_order_id = None
                 self.stopped_today = True
                 return True
-        except:
+        except Exception:
             pass
         
         return False
@@ -404,7 +404,7 @@ class ProductionSystem:
                                     if o.order.orderId == self.stop_order_id:
                                         current_stop = o.order.auxPrice
                                         break
-                            except:
+                            except Exception:
                                 pass
                         
                         # Move stop UP only
