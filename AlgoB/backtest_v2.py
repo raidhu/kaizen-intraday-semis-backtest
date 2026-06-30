@@ -50,32 +50,32 @@ example_short_logged = False
 
 for i in range(1, len(df)):
     date = df.index[i]
-    
+
     if pd.isna(smh_close.iloc[i]) or pd.isna(vix_close.iloc[i]):
         continue
-    
+
     day_start_equity = equity
     daily_losses = 0  # Track cumulative losses today
     long_stop_triggered = False
     short_entered_today = False
-    
+
     # Track if this is the first stop of the day
     is_first_stop_today = daily_stop_count == 0
-    
+
     # === CHECK LONG EQUITY STOP ===
     if position['long_shares'] > 0:
         current_position_value = position['long_shares'] * smh_close.iloc[i]
         entry_position_value = position['long_shares'] * position['long_entry']
         unrealized_pnl = current_position_value - entry_position_value
         current_equity = day_start_equity + unrealized_pnl
-        
+
         equity_dd = (current_equity - day_start_equity) / day_start_equity
-        
+
         if equity_dd <= -0.02:
             long_stop_triggered = True
             max_allowed_loss = day_start_equity * 0.02
             pnl = -max_allowed_loss
-            
+
             trades.append({
                 'date': date,
                 'action': 'STOP_LONG',
@@ -85,11 +85,11 @@ for i in range(1, len(df)):
                 'pnl': pnl,
                 'equity_before': day_start_equity
             })
-            
+
             equity = day_start_equity + pnl
             daily_losses += abs(pnl)  # Track loss
             daily_stop_count += 1  # Increment stop counter
-            
+
             if not example_stop_logged:
                 print("=" * 70)
                 print("EXAMPLE: LONG STOP")
@@ -99,10 +99,10 @@ for i in range(1, len(df)):
                 print(f"New equity: ${equity:,.2f}")
                 print("=" * 70 + "\n")
                 example_stop_logged = True
-            
+
             position['long_shares'] = 0
             position['long_entry'] = 0
-    
+
     # === ENTER SHORT (YAML spec conditions) ===
     # Conditions: daily_stop_count == 1 AND VIX >= 4% AND SMH <= -1%
     # Short gets its OWN -2% stop (independent of long stop)
@@ -111,15 +111,15 @@ for i in range(1, len(df)):
         if not pd.isna(smh_ret.iloc[i]) and not pd.isna(vix_chg.iloc[i]):
             if smh_ret.iloc[i] <= -0.01 and vix_chg.iloc[i] >= 0.04:
                 short_entered_today = True
-                
+
                 short_lev = 1.5 if vix_close.iloc[i] >= 22 else 1.0
                 short_notional = equity * short_lev
                 # Enter at LOW (best fill on down day) not CLOSE
                 short_shares = short_notional / soxl_low.iloc[i]
-                
+
                 position['short_shares'] = short_shares
                 position['short_entry'] = soxl_low.iloc[i]  # Enter at low
-                
+
                 trades.append({
                     'date': date,
                     'action': 'ENTER_SHORT',
@@ -131,20 +131,20 @@ for i in range(1, len(df)):
                     'pnl': None,
                     'equity_before': equity
                 })
-    
+
     # === EXIT SHORT (own -2% stop OR exit at close) ===
     if position['short_shares'] > 0:
         # Check if short hit its own -2% equity stop
         short_pnl_at_close = position['short_shares'] * (position['short_entry'] - soxl_close.iloc[i])
         short_equity_at_close = equity + short_pnl_at_close
         short_equity_dd = (short_equity_at_close - equity) / equity
-        
+
         if short_equity_dd <= -0.02:
             # Short hit its own -2% stop - exit with -2% loss
             max_short_loss = equity * 0.02
             pnl = -max_short_loss
             exit_price = position['short_entry'] + (pnl / position['short_shares'])
-            
+
             trades.append({
                 'date': date,
                 'action': 'STOP_SHORT',
@@ -154,14 +154,14 @@ for i in range(1, len(df)):
                 'pnl': pnl,
                 'equity_before': equity
             })
-            
+
             equity += pnl
             daily_losses += abs(pnl)
         else:
             # Didn't hit stop - exit at close (normal EOD exit)
             exit_price = soxl_close.iloc[i]
             pnl = position['short_shares'] * (position['short_entry'] - exit_price)
-            
+
             trades.append({
                 'date': date,
                 'action': 'EXIT_SHORT_EOD',
@@ -171,10 +171,10 @@ for i in range(1, len(df)):
                 'pnl': pnl,
                 'equity_before': equity
             })
-            
+
             equity += pnl
             daily_losses += abs(pnl) if pnl < 0 else 0
-            
+
             if not example_short_logged and pnl != 0:
                 print("=" * 70)
                 print("EXAMPLE: SHORT TRADE")
@@ -186,27 +186,27 @@ for i in range(1, len(df)):
                 print(f"New equity: ${equity:,.2f}")
                 print("=" * 70 + "\n")
                 example_short_logged = True
-        
+
         position['short_shares'] = 0
         position['short_entry'] = 0
-    
+
     # === ENTER LONG (if no position and didn't stop out today) ===
     if position['long_shares'] == 0 and not long_stop_triggered:
         # Reset daily stop counter on new position entry (new trading day)
         daily_stop_count = 0
-        
+
         if vix_close.iloc[i] < 13:
             lev = 3.5
         elif vix_close.iloc[i] < 15:
             lev = 3.25
         else:
             lev = 3.0
-        
+
         notional = equity * lev
         shares = notional / smh_close.iloc[i]
         position['long_shares'] = shares
         position['long_entry'] = smh_close.iloc[i]
-        
+
         trades.append({
             'date': date,
             'action': 'ENTER_LONG',
@@ -216,22 +216,22 @@ for i in range(1, len(df)):
             'pnl': None,
             'equity_before': equity
         })
-    
+
     # === EOD EQUITY ===
     if position['long_shares'] > 0:
         unrealized = position['long_shares'] * (smh_close.iloc[i] - position['long_entry'])
         eod_equity = equity + unrealized
     else:
         eod_equity = equity
-    
+
     # === DRAWDOWN ===
     if eod_equity > peak_equity:
         peak_equity = eod_equity
-    
+
     dd = peak_equity - eod_equity
     if dd > max_drawdown:
         max_drawdown = dd
-    
+
     daily_log.append({
         'date': date,
         'eod_equity': eod_equity,
